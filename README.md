@@ -23,6 +23,8 @@ This repository contains all the necessary files to test the client performance 
 ### Build the jar
 `mvn install <folder-name>`
 
+**Note:** Built with netbeans editor. If you are using any other IDE, check if main class is set.
+
 ### Run the jar
 `java -jar <jar-name>`
 
