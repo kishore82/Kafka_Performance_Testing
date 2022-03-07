@@ -38,9 +38,10 @@ public class ConsumerMetric {
         long lastReportTime = currentTimeMillis;
 
         while (messagesRead < count ) {
-            ConsumerRecords<String,byte[]> records = consumer.poll(Duration.ofMillis(100));
+            ConsumerRecords<String,byte[]> records = consumer.poll(Duration.ofMillis(1));
             currentTimeMillis = System.currentTimeMillis();
             if (!records.isEmpty()){
+                lastConsumedTime = currentTimeMillis;
                 for (ConsumerRecord<String,byte[]> record : records) {
                     messagesRead += 1;
                     if (record.key() != null){
@@ -68,10 +69,8 @@ public class ConsumerMetric {
         if (messagesRead < count){
             System.out.println("Exiting before consuming the expected number of messages");
         }
-        if(messagesRead==count){
-            totalMessagesRead.getAndSet(messagesRead);
-            totalBytesRead.getAndSet(bytesRead.get());
-        }        
+        totalMessagesRead.getAndSet(messagesRead);
+        totalBytesRead.getAndSet(bytesRead.get());      
     }
 
     public void printConsumerProgress(boolean fullStats ,
