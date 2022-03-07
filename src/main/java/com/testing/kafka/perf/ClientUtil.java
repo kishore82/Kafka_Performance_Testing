@@ -43,12 +43,12 @@ public class ClientUtil {
         getCommonProperties(consumerProps);
         consumerProps.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG,"org.apache.kafka.common.serialization.StringDeserializer");
         consumerProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG,"org.apache.kafka.common.serialization.ByteArrayDeserializer");
-        consumerProps.put(ConsumerConfig.RECEIVE_BUFFER_CONFIG, String.valueOf(2097152));
-        consumerProps.put(ConsumerConfig.MAX_PARTITION_FETCH_BYTES_CONFIG, String.valueOf(1048576));
+        consumerProps.put(ConsumerConfig.RECEIVE_BUFFER_CONFIG, String.valueOf(10));
+        consumerProps.put(ConsumerConfig.MAX_PARTITION_FETCH_BYTES_CONFIG, String.valueOf(10));
         consumerProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-        consumerProps.put(ConsumerConfig.CHECK_CRCS_CONFIG, "false");        
-        consumerProps.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 100);
-        consumerProps.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG,"true");
+        consumerProps.put(ConsumerConfig.CHECK_CRCS_CONFIG, "false");
+        consumerProps.put(ConsumerConfig.FETCH_MAX_BYTES_CONFIG, "10");
+        consumerProps.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, "1");
         return consumerProps;
     }
 
