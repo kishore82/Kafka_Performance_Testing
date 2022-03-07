@@ -186,25 +186,24 @@ public class ClientPerformance {
 
     private static ArgumentParser argParser() {
         ArgumentParser parser = ArgumentParsers
-                .newFor("Client Performance Test")
-                .build()
+                .newArgumentParser("client-performance")
                 .defaultHelp(true)
                 .description("This tool is used to verify the client performance.");
         
         Subparsers subparsers = parser.addSubparsers()
                 .dest("type")
                 .help("Choose produce or consume")
-                .description("Based on the subcommand, choose the parameter");
+                .description("Based on the subcommand, choose the argument");
 
         Subparser produce = subparsers
                 .addParser("produce")
                 .defaultHelp(true)
-                .description("Commands to produce");
+                .description("Choose the below named arguments for producing");
         
         Subparser consume = subparsers
                 .addParser("consume")
                 .defaultHelp(true)
-                .description("Commands to produce");
+                .description("Choose the below named arguments for consuming");
         
         MutuallyExclusiveGroup payloadOptions = produce
                 .addMutuallyExclusiveGroup()
@@ -254,7 +253,7 @@ public class ClientPerformance {
         consume.addArgument("--interval")
                 .action(store())
                 .required(false)
-                .setDefault(5000)
+                .setDefault(1000)
                 .type(Integer.class)
                 .metavar("REPORTING-INTERVAL-TIME")
                 .dest("reportingInterval")
