@@ -1,6 +1,6 @@
 Client Performance Testing Tool
 =================
-This repository contains all the necessary files to test the client performance both consumer and producer with Kafka brokers
+This repository contains all the necessary files to test the client performance ( `consumer` and `producer` ) with Kafka brokers
 
 ## Contents
 - [Prerequisite](#prerequisite)
@@ -118,5 +118,5 @@ java -jar perf-0.1.0-SNAPSHOT-jar-with-dependencies --server localhost:9093 --to
           
 ##### Example Command
 ```java
-java -jar perf-0.1.0-SNAPSHOT-jar-with-dependencies.jar --server localhost:9093 --topic newtopic --client.config /etc/kafka/readiness.properties consume --size 1000 --groupID test
+java -jar perf-0.1.0-SNAPSHOT-jar-with-dependencies.jar --server localhost:9093 --topic newtopic --client.config /etc/kafka/readiness.properties consume --size 1000 --groupID test --detailed
 ``` 
