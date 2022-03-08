@@ -30,6 +30,7 @@ This repository contains all the necessary files to test the client performance 
 
 ### Pass the appropriate arguments  
     usage: Client Performance Test [-h] --server BOOTSTRAP-SERVER --topic TOPIC
+                                   --throughput THROUGHPUT
                                    [--print-metrics]
                                    --client.config CLIENT-CONFIG-FILE
                                    {produce,consume} ...
@@ -43,6 +44,8 @@ This repository contains all the necessary files to test the client performance 
       --topic TOPIC          Produces or consumes to this topic.
       --print-metrics        Print  out  metrics  at  the   end  of  the  test.
                              (default: false)
+      --throughput THROUGHPUT
+                             Set this to -1 to disable throttling.
       --client.config CLIENT-CONFIG-FILE
                              Client  config  properties  file  containing  both
                              ssl, producer and consumer properties.
@@ -58,6 +61,7 @@ This repository contains all the necessary files to test the client performance 
   * `--topic newtopic `
   * `--client.config /etc/kafka/readiness.properties`
   * `--print-metrics ( default: false)`
+  * `--throughput -1`
         
 **Sub-Commands:**
   * `produce`
@@ -78,14 +82,12 @@ ssl.key.password=<password>
 #### Produce
      `  usage: client-performance --server BOOTSTRAP-SERVER --topic TOPIC
                         --client.config CLIENT-CONFIG-FILE produce [-h] --num-record NUM-RECORDS
-                        --throughput THROUGHPUT [--payload-delimiter PAYLOAD-DELIMITER]
+                        [--payload-delimiter PAYLOAD-DELIMITER]
                         (--size RECORD-SIZE | --payload-file PAYLOAD-FILE)
         named arguments:
           -h, --help              show this help message and exit
           --num-record NUM-RECORDS
                                   Number of messages to produce.
-          --throughput THROUGHPUT
-                                  Set this to -1 to disable throttling.
           --payload-delimiter PAYLOAD-DELIMITER
                                   Defaults to new line. This parameter  will be ignored if --payload-file is
                                   not provided. (default: \n)
@@ -99,7 +101,7 @@ ssl.key.password=<password>
                                   
 ##### Example Command
 ```java
-java -jar perf-0.1.0-SNAPSHOT-jar-with-dependencies --server localhost:9093 --topic newtopic --client.config /etc/kafka/readiness.properties produce --throughput 10 --num-record 1000 --size 10
+java -jar perf-0.1.0-SNAPSHOT-jar-with-dependencies --server localhost:9093 --topic newtopic --client.config /etc/kafka/readiness.properties --throughput 10 produce --num-record 1000 --size 10
 ```
          
 #### Consume
@@ -113,10 +115,10 @@ java -jar perf-0.1.0-SNAPSHOT-jar-with-dependencies --server localhost:9093 --to
           --interval REPORTING-INTERVAL-TIME
                                  Interval in ms at which to print progress info. (default: 5000)
           --groupID GROUP-ID     Consumer Group id.
-          --detailed             Print detailed stats while consuming. (default: false)
+          --detailed             Print detailed stats while consuming. (default: true)
           --full                 Print complete stats while consuming. (default: false)
           
 ##### Example Command
 ```java
-java -jar perf-0.1.0-SNAPSHOT-jar-with-dependencies.jar --server localhost:9093 --topic newtopic --client.config /etc/kafka/readiness.properties consume --size 1000 --groupID test --detailed
+java -jar perf-0.1.0-SNAPSHOT-jar-with-dependencies.jar --server localhost:9093 --topic newtopic --client.config /etc/kafka/readiness.properties --throughput -1 consume --size 1000 --groupID test
 ``` 
