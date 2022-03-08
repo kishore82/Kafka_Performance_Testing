@@ -11,6 +11,7 @@ import java.util.Arrays;
 import java.util.Date;
 import static net.sourceforge.argparse4j.impl.Arguments.store;
 import static net.sourceforge.argparse4j.impl.Arguments.storeTrue;
+import static net.sourceforge.argparse4j.impl.Arguments.storeFalse;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -41,6 +42,7 @@ public class ClientPerformance {
     public static double elapsedSecs = 0;
     public static long fetchTimeInMs = 0;
     public static double totalMBRead = 0;
+    public static Throughput tps;
     public static void main(String[] args) throws Exception {
         byte[] payload =null;
         ArgumentParser parser = argParser();
@@ -55,6 +57,7 @@ public class ClientPerformance {
             String clientConfig = res.getString("clientConfig");
             String bootstrapServer = res.getString("server");
             boolean printMetrics = res.getBoolean("printMetrics");
+            int throughput = res.getInt("throughput");
             if (clientConfig.isEmpty() || topicName.isEmpty() || bootstrapServer.isEmpty()) {
                 throw new ArgumentParserException("Common Properties must not be empty.", parser);
             }
@@ -66,7 +69,6 @@ public class ClientPerformance {
                 long numRecords = res.getLong("numRecords");
                 Integer recordSize = res.getInt("recordSize");
                 String payloadFile = res.getString("payloadFile");
-                int throughput = res.getInt("throughput");
                 if (numRecords == 0) {
                     throw new ArgumentParserException("--num-records must be greater than zero.", parser);
                 }
@@ -129,6 +131,7 @@ public class ClientPerformance {
                 long startMs, endMs = 0;
                 consumer = new KafkaConsumer<>(consumerProps);
                 startMs = System.currentTimeMillis();
+                tps = new Throughput(throughput, startMs);
                 System.out.println("-----------------Starting Consumer-----------------");
                 consumermetric.consume(consumer, Arrays.asList(topicName),fullStats,detailedStats,receiveSize, reportingInterval, startMs);
                 endMs = System.currentTimeMillis();
@@ -234,7 +237,7 @@ public class ClientPerformance {
                 .dest("numRecords")
                 .help("Number of messages to produce.");
 
-        produce.addArgument("--throughput")
+        parser.addArgument("--throughput")
                 .action(store())
                 .required(true)
                 .type(Integer.class)
@@ -268,7 +271,7 @@ public class ClientPerformance {
                 .help("Consumer Group id.");
          
         consume.addArgument("--detailed")
-                .action(storeTrue())
+                .action(storeFalse())
                 .type(Boolean.class)
                 .required(false)
                 .metavar("DETAILED-STATS")
