@@ -3,6 +3,7 @@ package com.testing.kafka.perf;
 import static com.testing.kafka.perf.ClientPerformance.joinGroupTimeInMs;
 import static com.testing.kafka.perf.ClientPerformance.totalBytesRead;
 import static com.testing.kafka.perf.ClientPerformance.totalMessagesRead;
+import static com.ericsson.bss.msg.testrunner.lsv.ClientPerformance.tps;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
@@ -51,6 +52,9 @@ public class ConsumerMetric {
                         bytesReadValue.addAndGet(record.value().length);
                     }
                     bytesRead.set(bytesReadValue.get()+bytesReadKey.get());
+		    if (tps.shouldThrottle(messagesRead, currentTimeMillis)) {
+                        tps.throttle();
+                    }
                     if (currentTimeMillis - lastReportTime >= reportingInterval){
                         if(detailedStats){
                             printConsumerProgress(fullStats, bytesRead.get(), lastBytesRead, messagesRead, lastMessagesRead,
