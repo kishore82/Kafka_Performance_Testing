@@ -1,15 +1,23 @@
 package com.testing.kafka.perf;
 
 import static com.testing.kafka.perf.ClientPerformance.joinGroupTimeInMs;
+import static com.testing.kafka.perf.ClientPerformance.async;
 import static com.testing.kafka.perf.ClientPerformance.totalBytesRead;
 import static com.testing.kafka.perf.ClientPerformance.totalMessagesRead;
-import static com.ericsson.bss.msg.testrunner.lsv.ClientPerformance.tps;
+import static com.testing.kafka.perf.ClientPerformance.tps;
+import static com.testing.kafka.perf.ConsumerListener.topicPartition;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.errors.WakeupException;
 
 /**
  *
@@ -25,56 +33,78 @@ public class ConsumerMetric {
     public static long joinStart = System.currentTimeMillis();
     public static long joinTimeMsInSingleRound = 0;
     public static long ReportTime =0;
-
+    public static ConsumerListener rebalanceListner;
+    public static long offset =0;
+    
     public void consume(KafkaConsumer<String, byte[]> consumer,
                                 List<String> topics,
                                 boolean fullStats,
-                                boolean detailedStats,
+                                boolean noLogs,
                                 long count,
                                 int reportingInterval,
                                 long testStartTime){
-        
-        consumer.subscribe(topics, new ConsumerListener(joinTimeMsInSingleRound,joinStart));
-        long currentTimeMillis = System.currentTimeMillis();
-        long lastReportTime = currentTimeMillis;
-
-        while (messagesRead < count ) {
-            ConsumerRecords<String,byte[]> records = consumer.poll(Duration.ofMillis(1));
-            currentTimeMillis = System.currentTimeMillis();
-            if (!records.isEmpty()){
-                lastConsumedTime = currentTimeMillis;
-                for (ConsumerRecord<String,byte[]> record : records) {
-                    messagesRead += 1;
-                    if (record.key() != null){
-                        bytesReadKey.addAndGet(record.key().length());
-                    }
-                    if (record.value() != null){
-                        bytesReadValue.addAndGet(record.value().length);
-                    }
-                    bytesRead.set(bytesReadValue.get()+bytesReadKey.get());
-		    if (tps.shouldThrottle(messagesRead, currentTimeMillis)) {
-                        tps.throttle();
-                    }
-                    if (currentTimeMillis - lastReportTime >= reportingInterval){
-                        if(detailedStats){
-                            printConsumerProgress(fullStats, bytesRead.get(), lastBytesRead, messagesRead, lastMessagesRead,
-                              lastReportTime, currentTimeMillis, joinTimeMsInSingleRound);
+        try{
+            rebalanceListner = new ConsumerListener(joinTimeMsInSingleRound,joinStart,consumer);
+            consumer.subscribe(topics, rebalanceListner);
+            long currentTimeMillis = System.currentTimeMillis();
+            long lastReportTime = currentTimeMillis;
+            long lastConsumedTime = currentTimeMillis;
+            long lastOffset = 0;
+            while (messagesRead < count ) {
+                ConsumerRecords<String,byte[]> records = consumer.poll(Duration.ofMillis(1));
+                currentTimeMillis = System.currentTimeMillis();
+                if (!records.isEmpty()){
+                    lastConsumedTime = currentTimeMillis;
+                    for (ConsumerRecord<String,byte[]> record : records) {
+                        messagesRead += 1;
+                        if (record.key() != null){
+                            bytesReadKey.addAndGet(record.key().length());
                         }
-                        joinTimeMsInSingleRound = 0;
-                        lastReportTime = currentTimeMillis;
-                        ReportTime = lastReportTime;
-                        lastMessagesRead = messagesRead;
-                        lastBytesRead = bytesRead.get();
+                        if (record.value() != null){
+                            bytesReadValue.addAndGet(record.value().length);
+                        }
+                        bytesRead.set(bytesReadValue.get()+bytesReadKey.get());
+                        if (tps.shouldThrottle(messagesRead, currentTimeMillis)) {
+                            tps.throttle();
+                        }
+                        rebalanceListner.addOffset(record.topic(), record.partition(),record.offset());
+                        if (currentTimeMillis - lastReportTime >= reportingInterval){
+                            if(!noLogs){
+                                printConsumerProgress(fullStats, bytesRead.get(), lastBytesRead, messagesRead, lastMessagesRead,
+                                  lastReportTime, currentTimeMillis, joinTimeMsInSingleRound);
+                            }
+                            joinTimeMsInSingleRound = 0;
+                            lastReportTime = currentTimeMillis;
+                            ReportTime = lastReportTime;
+                            lastMessagesRead = messagesRead;
+                            lastBytesRead = bytesRead.get();
+                        }
                     }
-                }   
+                    if(async.get()){
+                        consumer.commitAsync(rebalanceListner.getCurrentOffsets(), new AsyncCallback(consumer));
+                    }
+                    else{
+                        consumer.commitSync(rebalanceListner.getCurrentOffsets());
+                    }
+                }
             }
-        }
 
-        if (messagesRead < count){
-            System.out.println("Exiting before consuming the expected number of messages");
+            if (messagesRead < count){
+                System.out.println("Exiting before consuming the expected number of messages");
+            }  
         }
-        totalMessagesRead.getAndSet(messagesRead);
-        totalBytesRead.getAndSet(bytesRead.get());      
+        catch (WakeupException e) {
+            // ignore for shutdown
+        } 
+        finally {
+            consumer.commitSync(rebalanceListner.getCurrentOffsets());
+            totalMessagesRead.getAndSet(messagesRead);
+            totalBytesRead.getAndSet(bytesRead.get());
+            Set<TopicPartition> set = consumer.assignment();
+            Map<TopicPartition,OffsetAndMetadata> map = consumer.committed(set);
+            OffsetAndMetadata offsetData = map.get(topicPartition);
+            offset = offsetData.offset(); 
+        }        
     }
 
     public void printConsumerProgress(boolean fullStats ,
@@ -135,17 +165,18 @@ public class ConsumerMetric {
         }
         System.out.printf("%d rebalance, %d ms fetch time, %.4f fetch MB/sec, %.4f fetch records/sec.%n",periodicJoinTimeInMs, fetchTimeMs, intervalMbPerSec, intervalMessagesPerSec);
     }
-
+    
     public void summary(double elapsedSecs,long fetchTimeInMs ,double totalMBRead){
         System.out.println("--------Consumer Performance Summary Report--------\n");
         System.out.printf("Count of total record received: %d \n", totalMessagesRead.get());
         System.out.printf("Total MB received:  %.2f MB\n", totalMBRead);
         System.out.printf("Records per second received:  %.2f records/sec\n", totalMessagesRead.get() / elapsedSecs);
         System.out.printf("Mb per second:  %.2f MB/sec\n" , totalMBRead / elapsedSecs);
+        System.out.println("Offset committed: "+offset);
         System.out.printf("Rebalance Time in ms:  %d ms \n", joinGroupTimeInMs.get());
         System.out.printf("Fetch Time in ms:  %d ms \n", fetchTimeInMs);
-	System.out.printf("Fetch Mb per second:  %.2f MB/sec \n", totalMBRead / (fetchTimeInMs / 1000.0));
-	System.out.printf("Fetch records per second:  %.2f records/sec \n", totalMessagesRead.get() / (fetchTimeInMs / 1000.0));
+        System.out.printf("Fetch Mb per second:  %.2f MB/sec \n", totalMBRead / (fetchTimeInMs / 1000.0));
+        System.out.printf("Fetch records per second:  %.2f records/sec \n", totalMessagesRead.get() / (fetchTimeInMs / 1000.0));
         System.out.println("\n--------------End Of Summary Report----------------");
     }
 }

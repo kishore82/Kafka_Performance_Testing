@@ -49,6 +49,7 @@ public class ClientUtil {
         consumerProps.put(ConsumerConfig.CHECK_CRCS_CONFIG, "false");
         consumerProps.put(ConsumerConfig.FETCH_MAX_BYTES_CONFIG, "10");
         consumerProps.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, "1");
+        consumerProps.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
         return consumerProps;
     }
 
