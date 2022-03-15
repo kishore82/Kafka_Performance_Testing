@@ -106,7 +106,7 @@ ssl.key.password=<password>
                                   
 ##### Sample Command
 ```java
-java -jar perf-0.1.0-SNAPSHOT-jar-with-dependencies --server localhost:9093 --topic newtopic --client.config /etc/kafka/readiness.properties --throughput 10 produce 
+java -jar perf-0.1.0-SNAPSHOT-jar-with-dependencies.jar --server localhost:9093 --topic newtopic --client.config /etc/kafka/readiness.properties --throughput 10 produce 
 --num-record 1000 --size 10
 ```
 ##### Sample Output
