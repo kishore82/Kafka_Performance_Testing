@@ -1,7 +1,7 @@
 package com.testing.kafka.perf;
 
-import static com.ericsson.bss.msg.testrunner.lsv.ClientPerformance.threadCount;
-import static com.ericsson.bss.msg.testrunner.lsv.ClientUtil.topicList;
+import static com.testing.kafka.perf.ClientPerformance.threadCount;
+import static com.testing.kafka.perf.ClientUtil.topicList;
 import org.apache.kafka.clients.producer.Callback;
 
 public class ProducerMetric implements Runnable{
