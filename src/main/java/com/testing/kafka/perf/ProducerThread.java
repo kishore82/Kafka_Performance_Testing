@@ -38,11 +38,11 @@ public class ProducerThread implements Runnable {
     @Override
     public void run() {
         try{
-            topicList.forEach(topicName -> {
-                for (long i = 0; i < numRecords; i++) {
-                    if (payloadFile != null && !payloadFile.isEmpty()) {
-                        payload = payloadList.get(random.nextInt(payloadList.size()));
-                    }
+            for (long i = 0; i < numRecords; i++) {
+                if (payloadFile != null && !payloadFile.isEmpty()) {
+                    payload = payloadList.get(random.nextInt(payloadList.size()));
+                }
+                for(String topicName: topicList){
                     record = new ProducerRecord<>(topicName, payload);
                     long sendStartMs = System.currentTimeMillis();
                     org.apache.kafka.clients.producer.Callback cb = metric.nextCompletion(sendStartMs, payload.length, metric);
@@ -52,7 +52,7 @@ public class ProducerThread implements Runnable {
                         tps.throttle();
                     }
                 }
-            });
+            }
         }
         catch (Exception e ) {
             System.out.println("Exception caught: "+e.getMessage());
