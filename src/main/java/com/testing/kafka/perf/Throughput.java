@@ -4,7 +4,7 @@ package com.testing.kafka.perf;
  *
  * @author euimkks
  */
-public class Throughput {
+public class Throughput implements Runnable{
     
     private static final long NS_PER_MS = 1000000L;
     private static final long NS_PER_SEC = 1000 * NS_PER_MS;
@@ -31,7 +31,8 @@ public class Throughput {
         float elapsedSec = (sendStartMs - startMs) / 1000.f;
         return elapsedSec > 0 && (amountSoFar / elapsedSec) > this.targetThroughput;
     }
-
+    @Override
+    public void run(){}
     public void throttle() {
         if (targetThroughput == 0) {
             try {

@@ -24,14 +24,14 @@ public class MetricsUtil {
             String defaultOutputFormat = "%-" + maxLengthOfDisplayName + "s : %s";
             System.out.println(String.format("\n%-" + maxLengthOfDisplayName + "s   %s", "Metric Name", "Value"));
 
-            for (Map.Entry<String, Object> entry : sortedMetrics.entrySet()) {
+            sortedMetrics.entrySet().forEach(entry -> {
                 String outputFormat;
                 if (entry.getValue() instanceof Double)
                     outputFormat = doubleOutputFormat;
                 else
                     outputFormat = defaultOutputFormat;
                 System.out.println(String.format(outputFormat, entry.getKey(), entry.getValue()));
-            }
+            });
         }
     }
 }

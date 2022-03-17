@@ -1,42 +1,35 @@
 package com.testing.kafka.perf;
 
-import static com.testing.kafka.perf.ConsumerMetric.ReportTime;
-import static com.testing.kafka.perf.ConsumerMetric.bytesRead;
-import static com.testing.kafka.perf.ConsumerMetric.joinTimeMsInSingleRound;
-import static com.testing.kafka.perf.ConsumerMetric.lastBytesRead;
-import static com.testing.kafka.perf.ConsumerMetric.lastMessagesRead;
-import static com.testing.kafka.perf.ConsumerMetric.messagesRead;
+import static com.testing.kafka.perf.ClientUtil.topicList;
+import static com.testing.kafka.perf.ConsumerThread.ReportTime;
+import static com.testing.kafka.perf.ConsumerThread.bytesRead;
+import static com.testing.kafka.perf.ConsumerThread.joinTimeMsInSingleRound;
+import static com.testing.kafka.perf.ConsumerThread.lastBytesRead;
+import static com.testing.kafka.perf.ConsumerThread.lastMessagesRead;
+import static com.testing.kafka.perf.ConsumerThread.messagesRead;
 import java.text.SimpleDateFormat;
-import java.util.Arrays;
 import java.util.Date;
+import java.util.HashMap;
 import static net.sourceforge.argparse4j.impl.Arguments.store;
 import static net.sourceforge.argparse4j.impl.Arguments.storeTrue;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.Random;
-import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import net.sourceforge.argparse4j.inf.MutuallyExclusiveGroup;
-import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.KafkaProducer;
-import org.apache.kafka.clients.producer.ProducerConfig;
-import org.apache.kafka.clients.producer.ProducerRecord;
 import net.sourceforge.argparse4j.ArgumentParsers;
-import static net.sourceforge.argparse4j.impl.Arguments.storeFalse;
 import net.sourceforge.argparse4j.inf.ArgumentParser;
 import net.sourceforge.argparse4j.inf.Subparser;
 import net.sourceforge.argparse4j.inf.ArgumentParserException;
 import net.sourceforge.argparse4j.inf.Namespace;
 import net.sourceforge.argparse4j.inf.Subparsers;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.Metric;
 import org.apache.kafka.common.MetricName;
 import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.common.errors.WakeupException;
 import org.apache.kafka.common.utils.Exit;
 
 public class ClientPerformance { 
@@ -48,34 +41,33 @@ public class ClientPerformance {
     public static double totalMBRead = 0;
     public static Throughput tps;
     public static AtomicBoolean async = new AtomicBoolean(false);
-    public static Set<TopicPartition> set;
+    public static HashMap<TopicPartition, Long> currentOffsetMap	 = new HashMap<>();
     public static void main(String[] args) throws Exception {
         byte[] payload =null;
         ArgumentParser parser = argParser();
         Properties adminProps = new Properties();
-        Random random = new Random(0);
         TopicPartition topicPartition;
         KafkaProducer<String, byte[]> producer ;
         KafkaConsumer <String, byte[]> consumer;
+        Map<MetricName, ? extends Metric> metrics=null;
         SimpleDateFormat dateformat = new SimpleDateFormat("hh:mm:ss a dd-MMM-yyyy");  
         final Thread mainThread = Thread.currentThread();
         try {
             Namespace res = parser.parseArgs(args);
-            String topicName = res.getString("topic-name");
             String clientConfig = res.getString("clientConfig");
-            String bootstrapServer = res.getString("server");
             int throughput = res.getInt("throughput");
+            int interval = res.getInt("interval");
             boolean printMetrics = res.getBoolean("printMetrics");
-            if (clientConfig.isEmpty() || topicName.isEmpty() || bootstrapServer.isEmpty()) {
+            if (clientConfig.isEmpty()) {
                 throw new ArgumentParserException("Common Properties must not be empty.", parser);
             }
-            topicPartition = new TopicPartition(topicName, 1);
             ClientUtil util = new ClientUtil(clientConfig);
             util.getCommonProperties(adminProps);
-            adminProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServer);
+            CountDownLatch latch; 
             System.out.println("Topic properties: "+adminProps.toString()+"\n");
             if(res.get("type").equals("produce")){
                 long numRecords = res.getLong("numRecords");
+                Integer threadCount = res.getInt("threadCount");
                 Integer recordSize = res.getInt("recordSize");
                 String payloadFile = res.getString("payloadFile");
                 if (numRecords == 0) {
@@ -90,10 +82,10 @@ public class ClientPerformance {
                     payload = util.generateRandomByte(recordSize);
                 }
                 Properties producerProps = util.getProducerProps();
-                producerProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServer);
                 System.out.println("Producer properties: "+producerProps.toString()+"\n");
-                producer = new KafkaProducer<>(producerProps);                
+                producer = new KafkaProducer<>(producerProps);   
                 Runtime.getRuntime().addShutdownHook(new Thread() {
+                    @Override
                     public void run() {
                         System.out.println("Shutting down producer.....");
                         producer.flush();
@@ -104,30 +96,24 @@ public class ClientPerformance {
                             System.out.println("Exception occured in producer shutdown thread: "+e.getMessage());
                         }
                     }
-                });
-                ProducerRecord<String, byte[]> record;
-                ProducerMetric metric = new ProducerMetric(numRecords, 5000);
+                });  
+                latch  = new CountDownLatch(threadCount); 
+                ProducerMetric metric = new ProducerMetric(numRecords*topicList.size()*threadCount, interval);
                 long startMs = System.currentTimeMillis();
-                Throughput tps = new Throughput(throughput, startMs);
                 System.out.println("-----------------Starting Producer-----------------");
+                Thread[] producerThreads = new Thread[threadCount];
                 try{
-                    for (long i = 0; i < numRecords; i++) {
-                        if (payloadFile != null && !payloadFile.isEmpty()) {
-                            payload = payloadList.get(random.nextInt(payloadList.size()));
-                        }
-                        record = new ProducerRecord<>(topicName, payload);
-                        long sendStartMs = System.currentTimeMillis();
-                        Callback cb = metric.nextCompletion(sendStartMs, payload.length, metric);
-                        producer.send(record, cb);
-
-                        if (tps.shouldThrottle(i, sendStartMs)) {
-                            tps.throttle();
-                        }
-                    }
+                    for(int i =0;i<producerThreads.length;i++){
+                        producerThreads[i]=new Thread(new ProducerThread(producer, latch,payloadList,payload, numRecords, payloadFile, metric, new Throughput(throughput, startMs)),"ProducerThread-"+i);
+                        producerThreads[i].start();
+                        producerThreads[i].join();
+                        startMs = System.currentTimeMillis();
+                    }  
                 }
-                catch (IllegalStateException e ) {
-                    // ignore for shutdown
+                catch (InterruptedException e){
+                    System.out.println("Thread Interrupted: "+e.getMessage());
                 }
+                latch.await();
                 producer.flush();
                 metric.printLast();
                 System.out.println("Traffic is stopping now....\n");
@@ -135,30 +121,28 @@ public class ClientPerformance {
                 System.out.println("Stopped at: "+dateformat.format(new Date().getTime())+"\n");
                 metric.summary();
                 if(printMetrics){
-                MetricsUtil.printMetrics(producer.metrics());                
+                    metrics = producer.metrics();               
                 }
                 producer.close();
+                if(metrics!=null){
+                    MetricsUtil.printMetrics(metrics); 
+                }
             }
             else{
-                Map<MetricName, ? extends Metric> metrics=null;
                 long receiveSize = res.getLong("receiveSize");
-                String groupID = res.getString("groupID");
-                int reportingInterval = res.getInt("reportingInterval");
                 boolean noLogs = res.getBoolean("logs");
                 boolean fullStats = res.getBoolean("fullStats");
                 boolean asyncCommit = res.getBoolean("async");
                 async.getAndSet(asyncCommit);
-                if(receiveSize<=0||groupID.isEmpty()){
+                if(receiveSize<=0){
                     throw new ArgumentParserException("Consumer properties must be greater than zero and not null.", parser);
                 }
                 Properties consumerProps = util.getConsumerProps();
-                consumerProps.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServer);
-                consumerProps.put(ConsumerConfig.GROUP_ID_CONFIG,groupID);
                 System.out.println("Consumer Properties: "+consumerProps.toString()+"\n");
-                ConsumerMetric consumermetric = new ConsumerMetric();
                 long startMs, endMs = 0;
                 consumer = new KafkaConsumer<>(consumerProps);
                 Runtime.getRuntime().addShutdownHook(new Thread() {
+                    @Override
                     public void run() {
                         System.out.println("Shutting down consumer.....");
                         consumer.wakeup();
@@ -169,11 +153,20 @@ public class ClientPerformance {
                         }
                     }
                 });
+                latch  = new CountDownLatch(1);
                 startMs = System.currentTimeMillis();
+                ConsumerMetric consumermetric = new ConsumerMetric();
                 tps = new Throughput(throughput, startMs);
                 System.out.println("-----------------Starting Consumer-----------------");
-                consumermetric.consume(consumer, Arrays.asList(topicName),fullStats,noLogs,receiveSize, reportingInterval, startMs);
-                set = consumer.assignment();
+                try{
+                    Thread consumerThread =new Thread(new ConsumerThread(consumer, consumermetric,latch,topicList,util,fullStats,noLogs,receiveSize, interval, startMs),"ConsumerThread");
+                    consumerThread.start();
+                    consumerThread.join();
+                }
+                catch (InterruptedException e){
+                    System.out.println("Thread Interrupted: "+e.getMessage());
+                }
+                latch.await();
                 endMs = System.currentTimeMillis();
                 if(printMetrics){
                     metrics = consumer.metrics();               
@@ -203,7 +196,7 @@ public class ClientPerformance {
                     );
                 }
                 if(!noLogs){
-                    consumermetric.printConsumerProgress(fullStats, bytesRead.get(), lastBytesRead, messagesRead, lastMessagesRead,
+                    consumermetric.printConsumerProgress(fullStats, bytesRead.get(), lastBytesRead, messagesRead.get(), lastMessagesRead,
                               ReportTime, System.currentTimeMillis(), joinTimeMsInSingleRound);
                 }
                 System.out.println("Traffic is stopping now....\n");
@@ -253,22 +246,6 @@ public class ClientPerformance {
                 .required(true)
                 .description("Either --record-size or --payload-file must be specified but not both.");
 
-        parser.addArgument("--server")
-                .action(store())
-                .required(true)
-                .type(String.class)
-                .metavar("BOOTSTRAP-SERVER")
-                .dest("server")
-                .help("Broker server to establish connection.");
-        
-        parser.addArgument("--topic")
-                .action(store())
-                .required(true)
-                .type(String.class)
-                .dest("topic-name")
-                .metavar("TOPIC")
-                .help("Produces or consumes to this topic.");
-
         produce.addArgument("--num-record")
                 .action(store())
                 .required(true)
@@ -284,6 +261,14 @@ public class ClientPerformance {
                 .metavar("THROUGHPUT")
                 .dest("throughput")
                 .help("Set this to -1 to disable throttling.");
+ 
+        produce.addArgument("--threadCount")
+                .action(store())
+                .required(true)
+                .type(Integer.class)
+                .metavar("THREAD COUNT")
+                .dest("threadCount")
+                .help("Number of threads.");
 
         consume.addArgument("--size")
                 .action(store())
@@ -293,22 +278,14 @@ public class ClientPerformance {
                 .dest("receiveSize")
                 .help("Number of messages to consume.");
 
-        consume.addArgument("--interval")
+        parser.addArgument("--interval")
                 .action(store())
                 .required(false)
-                .setDefault(5000)
+                .setDefault(2000)
                 .type(Integer.class)
                 .metavar("REPORTING-INTERVAL-TIME")
-                .dest("reportingInterval")
+                .dest("interval")
                 .help("Interval in ms at which to print progress info.");
-        
-        consume.addArgument("--groupID")
-                .action(store())
-                .required(true)
-                .type(String.class)
-                .metavar("GROUP-ID")
-                .dest("groupID")
-                .help("Consumer Group id.");
          
         consume.addArgument("--no-logs")
                 .action(storeTrue())

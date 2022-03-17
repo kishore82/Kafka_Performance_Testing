@@ -2,7 +2,7 @@ package com.testing.kafka.perf;
 
 import org.apache.kafka.clients.producer.Callback;
 
-public class ProducerMetric {
+public class ProducerMetric implements Runnable{
     private long start;
     private long windowStart;
     private int[] latencies;
@@ -41,7 +41,8 @@ public class ProducerMetric {
         this.reportingInterval = reportingInterval;
         this.totalCount=0;
     }
-
+    @Override
+    public void run() {}
     public void record(int iter, int latency, int bytes, long time) {
         this.count++;
         this.bytes += bytes;
@@ -73,10 +74,10 @@ public class ProducerMetric {
         long diff = System.currentTimeMillis() - windowStart;
         double recsSec = 1000.0 * windowCount / (double) diff;
         double mbSec = 1000.0 * this.windowBytes / (double) diff / (1024.0 * 1024.0);
-        double mb = (1.0 * this.windowBytes) / (1024.0 * 1024.0);
+        double mbWindow = (1.0 * this.windowBytes) / (1024.0 * 1024.0);
         System.out.printf("%d records sent, %.2f MB, %.1f records/sec (%.2f MB/sec), %.1f ms avg latency, %.1f ms max latency, %d total records sent.%n",
                           windowCount,
-                          mb,
+                          mbWindow,
                           recsSec,
                           mbSec,
                           windowTotalLatency / (double) windowCount,

@@ -26,7 +26,7 @@ public class ProducerCallback implements Callback {
         int latency = (int) (now - start);
         this.metrics.record(iteration, latency, bytes, now);
         if (exception != null) {
-             System.out.println("Exception occured on MsgCallback");
+             System.out.println("Exception occured on Producer Callback");
         }
     }
 }

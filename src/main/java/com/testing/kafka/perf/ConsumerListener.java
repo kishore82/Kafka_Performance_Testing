@@ -4,9 +4,7 @@ import static com.testing.kafka.perf.ClientPerformance.joinGroupTimeInMs;
 import static com.testing.kafka.perf.ClientPerformance.async;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
@@ -22,7 +20,6 @@ public class ConsumerListener implements ConsumerRebalanceListener{
     private long joinStart;
     private int partition;
     private String topic;
-    public  static TopicPartition topicPartition;
     private KafkaConsumer consumer;
     private Map<TopicPartition, OffsetAndMetadata> currentOffsets = new HashMap<>();
 
@@ -33,8 +30,7 @@ public class ConsumerListener implements ConsumerRebalanceListener{
     }
 
     public void addOffset(String topic, int partition, long offset){
-        topicPartition = new TopicPartition(topic,partition);
-        currentOffsets.put(topicPartition,new OffsetAndMetadata(offset,"Commited offset"));
+        currentOffsets.put(new TopicPartition(topic,partition),new OffsetAndMetadata(offset,"Commited offset"));
     }
     
     public Map<TopicPartition, OffsetAndMetadata> getCurrentOffsets(){
