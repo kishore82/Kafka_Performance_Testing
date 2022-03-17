@@ -1,5 +1,7 @@
 package com.testing.kafka.perf;
 
+import static com.ericsson.bss.msg.testrunner.lsv.ClientPerformance.threadCount;
+import static com.ericsson.bss.msg.testrunner.lsv.ClientUtil.topicList;
 import org.apache.kafka.clients.producer.Callback;
 
 public class ProducerMetric implements Runnable{
@@ -114,6 +116,8 @@ public class ProducerMetric implements Runnable{
     public void summary(){
         System.out.println("--------Producer Performance Summary Report--------\n");
         System.out.printf("Count of total record sent: %d \n", count);
+        System.out.printf("Total record sent per thread: %d \n", count/threadCount);
+        System.out.printf("Total record sent per thread per topic: %d \n", count/threadCount/topicList.size());
         System.out.printf("Total MB sent:  %.2f MB\n",mb);
         System.out.printf("Records per second sent:  %.2f records/sec\n", recsPerSec);
         System.out.printf("Mb per second:  %.2f MB/sec\n" , mbPerSec);
