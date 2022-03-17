@@ -31,19 +31,16 @@ This repository contains all the necessary files to test the client performance 
 **Note:** Graceful shutdown is handled while pressing CTRL + C.
 
 ### Pass the appropriate arguments  
-    usage: Client Performance Test [-h] --server BOOTSTRAP-SERVER --topic TOPIC
-                                   --throughput THROUGHPUT
-                                   [--print-metrics]
-                                   --client.config CLIENT-CONFIG-FILE
-                                   {produce,consume} ...
+    usage: client-performance [-h] --throughput THROUGHPUT [--interval REPORTING-INTERVAL-TIME]
+                          [--print-metrics] --client.config CLIENT-CONFIG-FILE {produce,consume}
+                          ...
 
     This tool is used to verify the client performance.
 
     named arguments:
       -h, --help             show this help message and exit
-      --server BOOTSTRAP-SERVER
-                             Broker server to establish connection.
-      --topic TOPIC          Produces or consumes to this topic.
+      --interval REPORTING-INTERVAL-TIME
+                             Interval in ms at which to print progress info. (default: 2000)
       --print-metrics        Print  out  metrics  at  the   end  of  the  test.
                              (default: false)
       --throughput THROUGHPUT
@@ -59,8 +56,7 @@ This repository contains all the necessary files to test the client performance 
   
 ### Arguments to be passed
 **Global parameters for both producer and consumer**:
-  * `--server localhost:9093`
-  * `--topic newtopic `
+  * `--interval`
   * `--client.config /etc/kafka/readiness.properties`
   * `--print-metrics ( default: false)`
   * `--throughput -1`
@@ -70,15 +66,55 @@ This repository contains all the necessary files to test the client performance 
   * `consume`
 
 ### Client Config Property File
-Pass the property file containing the below paramters for ssl based communication.
+Pass the property file containing the below paramters.
 
 ```
+#Do not add extra properties. Changing values might impact performance
+
+#ssl properties
 security.protocol=SSL
-ssl.truststore.location=<truststore-jks-file-to-be-passed>
-ssl.truststore.password=<password>
-ssl.keystore.location=<keystore-jks-file-to-be-passed>
-ssl.keystore.password=<password>
-ssl.key.password=<password>
+ssl.truststore.location=/etc/kafkajks/client.truststore.jks
+ssl.truststore.password=clientPassword
+ssl.keystore.location=/etc/kafkajks/client.keystore.jks
+ssl.keystore.password=clientPassword
+ssl.key.password=clientPassword
+bootstrap.servers=eric-bss-msg-kafka-client:9093
+
+# general properties
+# give comma separated values for topics
+topicName=new1,new2,new3
+partitions=5
+
+# producer properties
+# List of values: 0,1,-1
+acks=1 
+retries=2
+linger.ms=1
+max.block.ms=5000
+# default value 16384 (16 kb)
+batch.size=10240
+# default value 131072 (128 kb)
+send.buffer.bytes=51200
+# default value 1048576 (1 mb)
+max.request.size=51200
+# List of values: none, gzip, snappy, lz4, or zstd
+compression.type=none
+
+#consumer properties
+# default value 500
+max.poll.records=500
+group.id=second-r
+# List of values: earliest, latest, none
+auto.offset.reset=earliest
+enable.auto.commit=false
+allow.auto.create.topics=false
+# default value 52428800 (50 mb)
+fetch.max.bytes=10485760
+check.crcs=false
+# default value 1048576 (1 mb)
+max.partition.fetch.bytes=65536
+# default value 65536 (64 kb)
+receive.buffer.bytes=65536
 ```
 ### Arguments for sub commands     
 #### Produce
@@ -93,6 +129,8 @@ ssl.key.password=<password>
           -h, --help              show this help message and exit
           --num-record NUM-RECORDS
                                   Number of messages to produce.
+          --threadCount THREAD COUNT
+                                  Number of threads.
           --payload-delimiter PAYLOAD-DELIMITER
                                   Defaults to new line. This parameter  will be ignored if --payload-file is
                                   not provided. (default: \n)
@@ -106,43 +144,53 @@ ssl.key.password=<password>
                                   
 ##### Sample Command
 ```java
-java -jar perf-0.1.0-SNAPSHOT-jar-with-dependencies.jar --server localhost:9093 --topic newtopic --client.config /etc/kafka/readiness.properties --throughput 10 produce 
---num-record 1000 --size 10
+java -jar perf-0.1.0-SNAPSHOT-jar-with-dependencies.jar --client.config /var/tmp/readiness.properties --throughput 1000 --interval 5000 produce --threadCount 3 
+--num-record 5000 --size 5120
 ```
 ##### Sample Output
 ```
-/var/tmp # java -jar lsv-0.1.0-SNAPSHOT-jar-with-dependencies.jar --server eric-bss-msg-kafka-client:9093 --topic four --client.config /var/tmp/readiness.properties 
---throughput -1 produce --num-record 100000 --size 5120
+/var/tmp # java -jar perf-0.1.0-SNAPSHOT-jar-with-dependencies.jar --client.config /var/tmp/readiness.properties --throughput 1000 --interval 5000 produce 
+--threadCount 3 --num-record 5000 --size 5120
 
 SSL enabled: true
 
-Topic properties: {bootstrap.servers=eric-bss-msg-kafka-client:9093, ssl.truststore.location=/etc/kafkajks/client.truststore.jks, ssl.key.password=clientPassword, ssl.truststore.password=clientPassword, customerpartitions=1, ssl.keystore.password=clientPassword, ssl.keystore.location=/etc/kafkajks/client.keystore.jks, security.protocol=SSL}
-
-Producer properties: {security.protocol=SSL, bootstrap.servers=eric-bss-msg-kafka-client:9093, ssl.keystore.password=clientPassword, ssl.truststore.location=/etc/kafkajks/client.truststore.jks, customerpartitions=1, ssl.truststore.password=clientPassword, value.serializer=org.apache.kafka.common.serialization.ByteArraySerializer, ssl.keystore.location=/etc/kafkajks/client.keystore.jks, retries=0, linger.ms=2, key.serializer=org.apache.kafka.common.serialization.StringSerializer, max.block.ms=5000, acks=1, ssl.key.password=clientPassword}
+Topic list: [topic1, topic2]
 
 SLF4J: Failed to load class "org.slf4j.impl.StaticLoggerBinder".
 SLF4J: Defaulting to no-operation (NOP) logger implementation
 SLF4J: See http://www.slf4j.org/codes.html#StaticLoggerBinder for further details.
+creating topic: topic1
+creating topic: topic2
+Topic properties: {bootstrap.servers=eric-bss-msg-kafka-client:9093, ssl.truststore.location=/etc/kafkajks/client.truststore.jks, ssl.key.password=clientPassword, ssl.truststore.password=clientPassword, ssl.keystore.password=clientPassword, ssl.keystore.location=/etc/kafkajks/client.keystore.jks, security.protocol=SSL}
+
+Producer properties: {security.protocol=SSL, ssl.keystore.password=clientPassword, ssl.truststore.location=/etc/kafkajks/client.truststore.jks, bootstrap.servers=eric-bss-msg-kafka-client:9093, max.request.size=51200, ssl.truststore.password=clientPassword, value.serializer=org.apache.kafka.common.serialization.ByteArraySerializer, send.buffer.bytes=51200, ssl.keystore.location=/etc/kafkajks/client.keystore.jks, retries=2, linger.ms=1, key.serializer=org.apache.kafka.common.serialization.StringSerializer, batch.size=10240, max.block.ms=5000, compression.type=none, acks=1 , ssl.key.password=clientPassword}
+
 -----------------Starting Producer-----------------
-13795 records sent, 67.36 MB, 2759.0 records/sec (13.47 MB/sec), 1434.9 ms avg latency, 1921.0 ms max latency, 13795 total records sent.
-21837 records sent, 106.63 MB, 4367.4 records/sec (21.33 MB/sec), 1437.4 ms avg latency, 1721.0 ms max latency, 35632 total records sent.
-22353 records sent, 109.15 MB, 4469.7 records/sec (21.82 MB/sec), 1378.7 ms avg latency, 1557.0 ms max latency, 57985 total records sent.
-21447 records sent, 104.72 MB, 4289.4 records/sec (20.94 MB/sec), 1406.6 ms avg latency, 1514.0 ms max latency, 79432 total records sent.
-20568 records sent, 100.43 MB, 830.5 records/sec (4.06 MB/sec), 1443.9 ms avg latency, 1558.0 ms max latency, 100000 total records sent.
+4999 records sent, 24.41 MB, 999.4 records/sec (4.88 MB/sec), 29.4 ms avg latency, 337.0 ms max latency, 4999 total records sent.
+-----------------ProducerThread-0 Completed-----------------
+5007 records sent, 24.45 MB, 1001.2 records/sec (4.89 MB/sec), 3.2 ms avg latency, 116.0 ms max latency, 10006 total records sent.
+5002 records sent, 24.42 MB, 1000.2 records/sec (4.88 MB/sec), 2.0 ms avg latency, 18.0 ms max latency, 15008 total records sent.
+-----------------ProducerThread-1 Completed-----------------
+5009 records sent, 24.46 MB, 1001.4 records/sec (4.89 MB/sec), 2.7 ms avg latency, 98.0 ms max latency, 20017 total records sent.
+4997 records sent, 24.40 MB, 999.2 records/sec (4.88 MB/sec), 4.4 ms avg latency, 110.0 ms max latency, 25014 total records sent.
+-----------------ProducerThread-2 Completed-----------------
+4986 records sent, 24.35 MB, 166.1 records/sec (0.81 MB/sec), 2.7 ms avg latency, 61.0 ms max latency, 30000 total records sent.
 Traffic is stopping now....
 
-Started at: 01:18:37 PM 09-Mar-2022
+Started at: 03:26:23 PM 17-Mar-2022
 
-Stopped at: 01:19:02 PM 09-Mar-2022
+Stopped at: 03:26:23 PM 17-Mar-2022
 
 --------Producer Performance Summary Report--------
 
-Count of total record sent: 100000 
-Total MB sent:  488.28 MB
-Records per second sent:  4037.79 records/sec
-Mb per second:  19.72 MB/sec
-Average latency in ms:  1418.69 ms 
-Maximum latency in ms:  1921.00 ms 
+Count of total record sent: 30000 
+Total record sent per thread: 10000 
+Total record sent per thread per topic: 5000 
+Total MB sent:  146.48 MB
+Records per second sent:  999.67 records/sec
+Mb per second:  4.88 MB/sec
+Average latency in ms:  7.40 ms 
+Maximum latency in ms:  337.00 ms 
 
 --------------End Of Summary Report----------------
 Shutting down producer.....
@@ -169,44 +217,61 @@ Shutting down producer.....
           
 ##### Sample Command
 ```java
-java -jar perf-0.1.0-SNAPSHOT-jar-with-dependencies.jar --server localhost:9093 --topic newtopic --client.config /etc/kafka/readiness.properties --throughput -1 consume 
---size 1000 --groupID test
+java -jar perf-0.1.0-SNAPSHOT-jar-with-dependencies.jar --client.config /var/tmp/readiness.properties --throughput 1000 --interval 5000 consume --size 30000
 ``` 
 ##### Sample Command
 ```
-/var/tmp # java -jar lsv-0.1.0-SNAPSHOT-jar-with-dependencies.jar --server eric-bss-msg-kafka-client:9093 --topic four --client.config /var/tmp/readiness.properties 
---throughput -1 consume --groupID test --size 1000
+/var/tmp # java -jar perf-0.1.0-SNAPSHOT-jar-with-dependencies.jar --client.config /var/tmp/readiness.properties --throughput 1000 --interval 5000 consume 
+--size 30000
 
 SSL enabled: true
 
-Topic properties: {bootstrap.servers=eric-bss-msg-kafka-client:9093, ssl.truststore.location=/etc/kafkajks/client.truststore.jks, ssl.key.password=clientPassword, ssl.truststore.password=clientPassword, customerpartitions=1, ssl.keystore.password=clientPassword, ssl.keystore.location=/etc/kafkajks/client.keystore.jks, security.protocol=SSL}
-
-Consumer Properties: {key.deserializer=org.apache.kafka.common.serialization.StringDeserializer, value.deserializer=org.apache.kafka.common.serialization.ByteArrayDeserializer, ssl.keystore.location=/etc/kafkajks/client.keystore.jks, ssl.truststore.location=/etc/kafkajks/client.truststore.jks, ssl.truststore.password=clientPassword, enable.auto.commit=false, security.protocol=SSL, group.id=test, check.crcs=false, auto.offset.reset=earliest, fetch.max.bytes=10, customerpartitions=1, ssl.keystore.password=clientPassword, bootstrap.servers=eric-bss-msg-kafka-client:9093, max.poll.records=1, ssl.key.password=clientPassword, max.partition.fetch.bytes=10, receive.buffer.bytes=10}
+Topic list: [topic1, topic2]
 
 SLF4J: Failed to load class "org.slf4j.impl.StaticLoggerBinder".
 SLF4J: Defaulting to no-operation (NOP) logger implementation
 SLF4J: See http://www.slf4j.org/codes.html#StaticLoggerBinder for further details.
+Topic already exits: topic1
+Topic already exits: topic2
+Topic properties: {bootstrap.servers=eric-bss-msg-kafka-client:9093, ssl.truststore.location=/etc/kafkajks/client.truststore.jks, ssl.key.password=clientPassword, ssl.truststore.password=clientPassword, ssl.keystore.password=clientPassword, ssl.keystore.location=/etc/kafkajks/client.keystore.jks, security.protocol=SSL}
+
+Consumer Properties: {key.deserializer=org.apache.kafka.common.serialization.StringDeserializer, value.deserializer=org.apache.kafka.common.serialization.ByteArrayDeserializer, ssl.keystore.location=/etc/kafkajks/client.keystore.jks, ssl.truststore.location=/etc/kafkajks/client.truststore.jks, ssl.truststore.password=clientPassword, enable.auto.commit=false, security.protocol=SSL, group.id=second-r, check.crcs=false, auto.offset.reset=earliest, fetch.max.bytes=10485760, bootstrap.servers=eric-bss-msg-kafka-client:9093, ssl.keystore.password=clientPassword, max.poll.records=500, ssl.key.password=clientPassword, allow.auto.create.topics=false, max.partition.fetch.bytes=65536, receive.buffer.bytes=65536}
+
 -----------------Starting Consumer-----------------
-196 records received, 0.9570 MB, 0.1914 MB/sec,  0.0000 records/sec.
-1000 records received, 4.8828 MB, 1.1275 MB/sec,  0.0000 records/sec.
+2317 records received, 11.3135 MB, 2.2586 MB/sec,  0.0000 records/sec.
+10013 records received, 48.8916 MB, 7.4812 MB/sec,  1000.0000 records/sec.
+15053 records received, 73.5010 MB, 4.8877 MB/sec,  1000.0000 records/sec.
+20061 records received, 97.9541 MB, 4.8838 MB/sec,  1000.0000 records/sec.
+25069 records received, 122.4072 MB, 4.8838 MB/sec,  1000.0000 records/sec.
+-----------------ConsumerThread Completed-----------------
+30000 records received, 146.4844 MB, 4.4341 MB/sec,  0.0000 records/sec.
 Traffic is stopping now....
 
-Started at: 01:21:37 PM 09-Mar-2022
+Started at: 03:28:01 PM 17-Mar-2022
 
-Stopped at: 01:21:46 PM 09-Mar-2022
+Stopped at: 03:28:32 PM 17-Mar-2022
 
 --------Consumer Performance Summary Report--------
 
-Count of total record received: 1000 
-Total MB received:  4.88 MB
-Records per second received:  118.04 records/sec
-Mb per second:  0.58 MB/sec
-Offset committed: 999
-Rebalance Time in ms:  4298 ms 
-Fetch Time in ms:  4174 ms 
-Fetch Mb per second:  1.17 MB/sec 
-Fetch records per second:  239.58 records/sec 
+Count of total record received: 30000 
+Total MB received:  146.48 MB
+Records per second received:  983.93 records/sec
+Mb per second:  4.80 MB/sec
+Rebalance Time in ms:  3189 ms 
+Fetch Time in ms:  27301 ms 
+Fetch Mb per second:  5.37 MB/sec 
+Fetch records per second:  1098.86 records/sec 
 
 --------------End Of Summary Report----------------
+
+
+-------------Consumer Offset Management------------
+
+Beginning offsets: {"topic1-1":0,"topic2-1":0,"topic1-0":0,"topic2-0":0}
+Current offsets: {"topic1-1":7500,"topic1-0":7500,"topic2-1":7500,"topic2-0":7500}
+Ending offsets: {"topic1-1":7500,"topic2-1":7500,"topic1-0":7500,"topic2-0":7500}
+
+----------------End of Offset Report---------------
+
 Shutting down consumer.....
 ```
