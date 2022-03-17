@@ -40,6 +40,7 @@ public class ClientPerformance {
     public static long fetchTimeInMs = 0;
     public static double totalMBRead = 0;
     public static Throughput tps;
+    public static Integer threadCount =0;
     public static AtomicBoolean async = new AtomicBoolean(false);
     public static HashMap<TopicPartition, Long> currentOffsetMap	 = new HashMap<>();
     public static void main(String[] args) throws Exception {
@@ -67,7 +68,7 @@ public class ClientPerformance {
             System.out.println("Topic properties: "+adminProps.toString()+"\n");
             if(res.get("type").equals("produce")){
                 long numRecords = res.getLong("numRecords");
-                Integer threadCount = res.getInt("threadCount");
+                threadCount = res.getInt("threadCount");
                 Integer recordSize = res.getInt("recordSize");
                 String payloadFile = res.getString("payloadFile");
                 if (numRecords == 0) {
@@ -96,7 +97,8 @@ public class ClientPerformance {
                             System.out.println("Exception occured in producer shutdown thread: "+e.getMessage());
                         }
                     }
-                });  
+                });
+                throughput/=topicList.size();
                 latch  = new CountDownLatch(threadCount); 
                 ProducerMetric metric = new ProducerMetric(numRecords*topicList.size()*threadCount, interval);
                 long startMs = System.currentTimeMillis();
