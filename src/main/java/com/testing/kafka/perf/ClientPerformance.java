@@ -102,6 +102,7 @@ public class ClientPerformance {
                 latch  = new CountDownLatch(threadCount); 
                 ProducerMetric metric = new ProducerMetric(numRecords*topicList.size()*threadCount, interval);
                 long startMs = System.currentTimeMillis();
+                long start = System.currentTimeMillis();
                 System.out.println("-----------------Starting Producer-----------------");
                 Thread[] producerThreads = new Thread[threadCount];
                 try{
@@ -119,7 +120,7 @@ public class ClientPerformance {
                 producer.flush();
                 metric.printLast();
                 System.out.println("Traffic is stopping now....\n");
-                System.out.println("Started at: "+dateformat.format(new Date(startMs))+"\n");
+                System.out.println("Started at: "+dateformat.format(new Date(start))+"\n");
                 System.out.println("Stopped at: "+dateformat.format(new Date().getTime())+"\n");
                 metric.summary();
                 if(printMetrics){
